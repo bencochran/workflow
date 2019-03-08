@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:Suppress("EXPERIMENTAL_API_USAGE")
+
 package com.squareup.workflow
 
 import kotlinx.coroutines.CancellationException
@@ -79,7 +81,7 @@ class WorkflowOperatorsTest {
       it.toString()
     }
 
-    withAdaptedEvents.cancel(ExpectedException())
+    withAdaptedEvents.cancel()
 
     assertTrue(sourceCancellation is CancellationException)
   }
@@ -157,7 +159,7 @@ class WorkflowOperatorsTest {
     val withMappedStates = source.mapState { it }
 
     assertNull(sourceCancellation)
-    withMappedStates.cancel(ExpectedException())
+    withMappedStates.cancel()
     assertTrue(sourceCancellation is CancellationException)
   }
 
@@ -314,7 +316,7 @@ class WorkflowOperatorsTest {
       state.send(42)
     }
     val withMappedStates: Workflow<Int, Unit, Unit> = source.switchMapState {
-      Channel<Int>().apply { cancel(ExpectedException()) }
+      Channel<Int>().apply { cancel() }
     }
 
     withMappedStates.openSubscriptionToState()
@@ -361,7 +363,7 @@ class WorkflowOperatorsTest {
           withMappedStates.sendEvent(Unit)
 
           assertFalse(transformedChannel.isClosedForSend)
-          this.cancel(ExpectedException())
+          this.cancel()
           assertTrue(transformedChannel.isClosedForSend)
         }
   }
@@ -378,7 +380,7 @@ class WorkflowOperatorsTest {
     val withMappedStates = source.switchMapState { produce { send(it) } }
 
     assertNull(sourceCancellation)
-    withMappedStates.cancel(ExpectedException())
+    withMappedStates.cancel()
     assertTrue(sourceCancellation is CancellationException)
   }
 
@@ -436,7 +438,7 @@ class WorkflowOperatorsTest {
     val withMappedResult = source.mapResult { it }
 
     assertNull(sourceCancellation)
-    withMappedResult.cancel(ExpectedException())
+    withMappedResult.cancel()
     assertTrue(sourceCancellation is CancellationException)
   }
 }
