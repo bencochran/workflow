@@ -18,6 +18,7 @@ package com.squareup.workflow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers.Unconfined
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
@@ -33,7 +34,7 @@ import kotlin.coroutines.CoroutineContext
  *
  * See this module's README for an explanation of why Unconfined is used.
  */
-private val operatorScope = CoroutineScope(Unconfined)
+private val operatorContext = Unconfined
 
 /**
  * [Transforms][https://stackoverflow.com/questions/15457015/explain-contramap]
@@ -56,7 +57,7 @@ fun <S1 : Any, S2 : Any, E : Any, O : Any> Workflow<S1, E, O>.mapState(
     Deferred<O> by this,
     WorkflowInput<E> by this {
   override fun openSubscriptionToState(): ReceiveChannel<S2> =
-    operatorScope.produce {
+    GlobalScope.produce(operatorContext) {
       val source = this@mapState.openSubscriptionToState()
       source.consumeEach {
         send(transform(it))
@@ -76,7 +77,7 @@ fun <S1 : Any, S2 : Any, E : Any, O : Any> Workflow<S1, E, O>.switchMapState(
     Deferred<O> by this,
     WorkflowInput<E> by this {
   override fun openSubscriptionToState(): ReceiveChannel<S2> =
-    operatorScope.produce(capacity = CONFLATED) {
+    GlobalScope.produce(operatorContext, capacity = CONFLATED) {
       val upstreamChannel = this@switchMapState.openSubscriptionToState()
       val downstreamChannel = channel
       var transformerJob: Job? = null
@@ -105,7 +106,7 @@ fun <S : Any, E : Any, O1 : Any, O2 : Any> Workflow<S, E, O1>.mapResult(
   // We can't just make the downstream a child of the upstream workflow to propagate cancellation,
   // since the downstream's call to `await` would never return (parent waits for all its children
   // to complete).
-  val transformedResult = operatorScope.async {
+  val transformedResult = GlobalScope.async(operatorContext) {
     transform(this@mapResult.await())
   }
 
