@@ -165,15 +165,24 @@ class WorkflowPool {
     val workflow = requireWorkflow(handle)
     workflow.openSubscriptionToState()
         .consume {
+          println("[awaitWorkflowUpdate] 1 handle.state=${handle.state}")
           removeCompletedWorkflowAfter(handle.id) {
+            println("[awaitWorkflowUpdate] 2")
             var state = receiveOrNull()
+            println("[awaitWorkflowUpdate] 3 state=$state")
             // Skip all the states that match the handle's state.
             while (state == handle.state) {
+              println("[awaitWorkflowUpdate] 4 state=$state")
               state = receiveOrNull()
             }
-            return state
-                ?.let { Running(handle.copy(state = it)) }
-                ?: Finished(workflow.await())
+            println("[awaitWorkflowUpdate] 5 state=$state")
+            try {
+              return state
+                  ?.let { Running(handle.copy(state = it)) }
+                  ?: Finished(workflow.await())
+            } finally {
+              println("[awaitWorkflowUpdate] 6")
+            }
           }
         }
   }
@@ -204,12 +213,21 @@ class WorkflowPool {
     name: String,
     type: Type<I, Nothing, O>
   ): O {
+    println("[awaitWorkerResult] 1 input=$input worker=$worker")
+    RuntimeException().printStackTrace()
     register(worker.asLauncher(), type)
+    println("[awaitWorkerResult] 2")
     val handle = Handle(type.makeWorkflowId(name), input)
+    println("[awaitWorkerResult] 3")
     val workflow = requireWorkflow(handle)
+    println("[awaitWorkerResult] 4")
 
     removeCompletedWorkflowAfter(handle.id) {
+      println("[awaitWorkerResult] 5")
       return workflow.await()
+          .also {
+            println("[awaitWorkerResult] 6 result=$it")
+          }
     }
   }
 

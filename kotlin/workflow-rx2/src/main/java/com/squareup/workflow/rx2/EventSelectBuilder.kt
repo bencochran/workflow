@@ -21,8 +21,8 @@ import com.squareup.workflow.Finished
 import com.squareup.workflow.Running
 import com.squareup.workflow.Worker
 import com.squareup.workflow.Workflow
-import com.squareup.workflow.WorkflowUpdate
 import com.squareup.workflow.WorkflowPool
+import com.squareup.workflow.WorkflowUpdate
 import io.reactivex.Single
 import io.reactivex.Single.just
 import kotlinx.coroutines.CoroutineScope
@@ -98,7 +98,13 @@ class EventSelectBuilder<E : Any, R : Any> internal constructor(
   fun <S : Any, E : Any, O : Any> WorkflowPool.onWorkflowUpdate(
     handle: WorkflowPool.Handle<S, E, O>,
     handler: (WorkflowUpdate<S, E, O>) -> R
-  ) = onSuspending(handler) { awaitWorkflowUpdate(handle) }
+  ) = onSuspending(handler) {
+    println("[onWorkflowUpdate] $handle")
+    awaitWorkflowUpdate(handle)
+        .also {
+          println("[onWorkflowUpdate] done: $it")
+        }
+  }
 
   /**
    * Selected when the given [worker] produces its result. If [worker] wasn't already running,
@@ -118,7 +124,13 @@ class EventSelectBuilder<E : Any, R : Any> internal constructor(
     input: I,
     name: String = "",
     crossinline handler: (O) -> R
-  ) = onSuspending(handler) { awaitWorkerResult(worker, input, name) }
+  ) = onSuspending(handler) {
+    println("[onWorkerResult] input=$input worker=$worker")
+    awaitWorkerResult(worker, input, name)
+        .also {
+          println("[onWorkerResult] result=$it")
+        }
+  }
 
   /**
    * Defines a case that is selected when `single` completes successfully, and is passed the value
@@ -155,9 +167,19 @@ class EventSelectBuilder<E : Any, R : Any> internal constructor(
     crossinline handler: (T) -> R,
     crossinline block: suspend () -> T
   ) {
+    println("[onSuspending] 1")
     with(builder) {
-      scope.async { block() }
-          .onAwait { just(handler(it)) }
+      println("[onSuspending] 2")
+      scope.async {
+        println("[onSuspending] 3")
+        block()
+            .also { println("[onSuspending] 4 it=$it") }
+      }
+          .onAwait {
+            println("[onSuspending] 5 it=$it")
+            just(handler(it))
+                .also { i -> println("[onSuspending] 6 it=$i") }
+          }
     }
   }
 }

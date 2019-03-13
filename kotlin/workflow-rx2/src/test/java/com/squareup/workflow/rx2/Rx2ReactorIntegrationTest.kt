@@ -189,9 +189,13 @@ class Rx2ReactorIntegrationTest {
       state: Unit,
       events: EventChannel<String>,
       workflows: WorkflowPool
-    ): Single<out Reaction<Unit, Unit>> = events.select {
-      workflows.onWorkerResult(singleWorker<Unit, String> { Single.just("fnord") }, Unit) {
-        FinishWith(Unit)
+    ): Single<out Reaction<Unit, Unit>> {
+      println("[ImmediateOnSuccess] onReact")
+      return events.select {
+        workflows.onWorkerResult(singleWorker<Unit, String> { Single.just("fnord") }, Unit) {
+          println("[ImmediateOnSuccess] worker result: $it")
+          FinishWith(Unit)
+        }
       }
     }
 
@@ -261,52 +265,55 @@ class Rx2ReactorIntegrationTest {
       state: OuterState,
       events: EventChannel<OuterEvent>,
       workflows: WorkflowPool
-    ): Single<out Reaction<OuterState, Unit>> = when (state) {
+    ): Single<out Reaction<OuterState, Unit>> {
+      println("[OuterReactor] onReact: $state")
+      return when (state) {
 
-      Idle -> events.select {
-        onEvent<RunEchoJob> { EnterState(RunningEchoJob(it.echoer)) }
-        onEvent<RunImmediateJob> { EnterState(RunningImmediateJob) }
-        onEvent<Cancel> { FinishWith(Unit) }
-      }
+        Idle -> events.select {
+          onEvent<RunEchoJob> { EnterState(RunningEchoJob(it.echoer)) }
+          onEvent<RunImmediateJob> { EnterState(RunningImmediateJob) }
+          onEvent<Cancel> { FinishWith(Unit) }
+        }
 
-      is RunningEchoJob -> events.select {
-        workflows.onWorkflowUpdate(state.echoer) {
-          when (it) {
-            is Running -> EnterState(RunningEchoJob(it.handle))
-            is Finished -> {
-              results += it.result
-              EnterState(Idle)
+        is RunningEchoJob -> events.select {
+          workflows.onWorkflowUpdate(state.echoer) {
+            when (it) {
+              is Running -> EnterState(RunningEchoJob(it.handle))
+              is Finished -> {
+                results += it.result
+                EnterState(Idle)
+              }
             }
+          }
+
+          onEvent<Pause> {
+            workflows.abandonWorkflow(state.echoer)
+            EnterState(Paused(state.echoer))
+          }
+
+          onEvent<Background> { EnterState(Idle) }
+
+          onEvent<Cancel> {
+            workflows.abandonWorkflow(state.echoer)
+            EnterState(Idle)
           }
         }
 
-        onEvent<Pause> {
-          workflows.abandonWorkflow(state.echoer)
-          EnterState(Paused(state.echoer))
+        is Paused -> events.select {
+          onEvent<Resume> { EnterState(RunningEchoJob(state.echoer)) }
+          onEvent<Cancel> { EnterState(Idle) }
         }
 
-        onEvent<Background> { EnterState(Idle) }
-
-        onEvent<Cancel> {
-          workflows.abandonWorkflow(state.echoer)
-          EnterState(Idle)
-        }
-      }
-
-      is Paused -> events.select {
-        onEvent<Resume> { EnterState(RunningEchoJob(state.echoer)) }
-        onEvent<Cancel> { EnterState(Idle) }
-      }
-
-      is RunningImmediateJob -> events.select {
-        workflows.onWorkflowUpdate(state.job) {
-          when (it) {
-            is Running -> throw AssertionError(
-                "Should never re-enter $RunningImmediateJob."
-            )
-            is Finished -> {
-              results += "Finished ${ImmediateOnSuccess::class}"
-              EnterState(Idle)
+        is RunningImmediateJob -> events.select {
+          workflows.onWorkflowUpdate(state.job) {
+            when (it) {
+              is Running -> throw AssertionError(
+                  "Should never re-enter $RunningImmediateJob."
+              )
+              is Finished -> {
+                results += "Finished ${ImmediateOnSuccess::class}"
+                EnterState(Idle)
+              }
             }
           }
         }
